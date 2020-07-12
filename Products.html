@@ -50,7 +50,7 @@
               <td>{{ product.origin_price }}</td>
               <td>{{ product.price }}</td>
               <td>
-                <span v-if="product.is_enabled" class="text-success">啟用</span>
+                <span v-if="product.enabled" class="text-success">啟用</span>
                 <span v-else>未啟用</span>
               </td>
               <td>
@@ -76,10 +76,13 @@
         <pagination :pages="pagination" @emit-pages="getProducts"></pagination>
 
         <product-modal
+          ref="productModal"
           :is-new="isNew"
+          :status="status"
           :user="user"
           @update="getProducts"
         ></product-modal>
+
         <del-product-modal
           :temp-product="tempProduct"
           :user="user"
@@ -141,6 +144,11 @@
                       placeholder="請輸入圖片連結"
                       v-model="tempProduct.imageUrl[i - 1]"
                     />
+                  </div>
+                  <div class="form-group">
+                    <label for="customFile">或 上傳圖片</label>
+                    <input id="customFile" ref="file" type="file" class="form-control" @change="uploadFile">
+                    <span v-if="status.uploadingFile">檔案上傳中...</span>
                   </div>
                   <img
                     class="img-fluid"
@@ -232,14 +240,12 @@
                   <div class="form-group">
                     <div class="form-check">
                       <input
-                        id="is_enabled"
+                        id="enabled"
                         class="form-check-input"
                         type="checkbox"
-                        v-model="tempProduct.is_enabled"
-                        :true-value="1"
-                        :false-value="0"
+                        v-model="tempProduct.enabled"
                       />
-                      <label class="form-check-label" for="is_enabled"
+                      <label class="form-check-label" for="enabled"
                         >是否啟用</label
                       >
                     </div>
@@ -319,15 +325,15 @@
       <nav aria-label="Page navigation example">
         <ul class="pagination">
           <li class="page-item" :class="{'disabled': pages.current_page === 1}">
-            <a class="page-link" href="#" aria-label="Previous" @click.prevent="emitPage(pages.current_page - 1)">
+            <a class="page-link" href="#" aria-label="Previous" @click.prevent="changePage(pages.current_page - 1)">
               <span aria-hidden="true">&laquo;</span>
             </a>
           </li>
           <li class="page-item" :class="{'active': item === pages.current_page}" v-for="(item, index) in pages.total_pages" :key="index">
-            <a class="page-link" href="#" @click.prevent="emitPage(item)">{{ item }}</a>
+            <a class="page-link" href="#" @click.prevent="changePage(item)">{{ item }}</a>
           </li>
           <li class="page-item" :class="{'disabled': pages.current_page === pages.total_pages}">
-            <a class="page-link" href="#" aria-label="Next" @click.prevent="emitPage(pages.current_page + 1)">
+            <a class="page-link" href="#" aria-label="Next" @click.prevent="changePage(pages.current_page + 1)">
               <span aria-hidden="true">&raquo;</span>
             </a>
           </li>
@@ -350,6 +356,12 @@
             type: Boolean,
             default: true,
           },
+          status: {
+            type: Object,
+            default() {
+              return {};
+            },
+          },
           user: {
             type: Object,
             default() {
@@ -358,39 +370,73 @@
           },
         },
         methods: {
+          getProduct(id) {
+            const api = `https://course-ec-api.hexschool.io/api/${this.user.uuid}/admin/ec/product/${id}`;
+            axios
+              .get(api)
+              .then((res) => {
+                $("#productModal").modal("show");
+                this.tempProduct = res.data.data;
+              })
+              .catch((err) => {
+                console.log(err);
+              });
+          },
           updateProduct() {
             // 這裡不能用 const 因為 api 路徑可能會改
             let api = `https://course-ec-api.hexschool.io/api/${this.user.uuid}/admin/ec/product`;
             let httpMethod = "post";
             // 如果 isNew 是 false 代表不是新增商品
-            // if (!this.isNew) {
-            //   api = `https://course-ec-api.hexschool.io/api/${this.user.uuid}/admin/ec/product/${this.tempProduct.id}`;
-            //   httpMethod = "patch";
-            // }
+            if (!this.isNew) {
+              api = `https://course-ec-api.hexschool.io/api/${this.user.uuid}/admin/ec/product/${this.tempProduct.id}`;
+              httpMethod = "patch";
+            }
 
             axios.defaults.headers.common.Authorization = `Bearer ${this.user.token}`;
 
-            axios
-              .post(api, this.tempProduct)
+            axios[httpMethod](api, this.tempProduct)
               .then(() => {
                 $("#productModal").modal("hide");
-                // this.tempProduct = {
-                //   imageUrl: [],
-                // };
                 this.$emit("update");
               })
               .catch((err) => {
                 console.log(err);
               });
+          },
+          uploadFile() {
+            const uploadedFile = this.$refs.file.files[0];
+            this.$refs.file.type = "text";
+            this.$refs.file.type = "file";
+            const formData = new FormData();
+            formData.append("file", uploadedFile);
+            const api = `https://course-ec-api.hexschool.io/api/${this.user.uuid}/admin/storage`;
+            this.status.uploadingFile = true;
 
-            // axios[httpMethod](api, this.tempProduct)
-            //   .then(() => {
-            //     $("#productModal").modal("hide");
-            //     this.$emit("update");
-            //   })
-            //   .catch((err) => {
-            //     console.log(err);
-            //   });
+            axios
+              .post(api, formData, {
+                headers: {
+                  "Content-Type": "multipart/form-data",
+                },
+              })
+              .then((res) => {
+                this.status.uploadingFile = false;
+                if (res.status === 200) {
+                  this.tempProduct.imageUrl.push(res.data.data.path);
+                }
+              })
+              .catch(() => {
+                this.status.uploadingFile = false;
+                console.log("上傳不可超過 2 MB");
+              });
+          },
+        },
+        watch: {
+          isNew(value) {
+            if (value === true) {
+              this.tempProduct = {
+                imageUrl: [],
+              };
+            }
           },
         },
       });
@@ -440,7 +486,8 @@
           },
         },
         methods: {
-          emitPage(nowPage) {
+          changePage(nowPage) {
+            if (nowPage === this.pages.current_page) return;
             this.$emit("emit-pages", nowPage);
           },
         },
@@ -456,6 +503,9 @@
             },
             pagination: {},
             isNew: false,
+            status: {
+              uploadingFile: false,
+            },
             user: {
               token: "",
               uuid: "9581c775-21da-48b3-9520-2da056c30643",
@@ -504,8 +554,8 @@
                 break;
               case "edit":
                 this.tempProduct = JSON.parse(JSON.stringify(product));
+                this.$refs.productModal.getProduct(this.tempProduct.id);
                 this.isNew = false;
-                $("#productModal").modal("show");
                 break;
               case "delete":
                 this.tempProduct = JSON.parse(JSON.stringify(product));

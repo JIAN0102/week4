@@ -392,7 +392,7 @@
               httpMethod = "patch";
             }
 
-            axios.defaults.headers.common.Authorization = `Bearer ${this.user.token}`;
+            // axios.defaults.headers.common.Authorization = `Bearer ${this.user.token}`;
 
             axios[httpMethod](api, this.tempProduct)
               .then(() => {
@@ -463,7 +463,7 @@
           deleteProduct() {
             const api = `https://course-ec-api.hexschool.io/api/${this.user.uuid}/admin/ec/product/${this.tempProduct.id}`;
 
-            axios.defaults.headers.common.Authorization = `Bearer ${this.user.token}`;
+            // axios.defaults.headers.common.Authorization = `Bearer ${this.user.token}`;
 
             axios.delete(api).then(() => {
               $("#delProductModal").modal("hide");
@@ -518,6 +518,8 @@
             "$1"
           );
 
+          axios.defaults.headers.common.Authorization = `Bearer ${this.user.token}`;
+
           if (this.user.token === "") {
             window.location = "Login.html";
           }
@@ -528,15 +530,7 @@
           getProducts(page = 1) {
             const api = `https://course-ec-api.hexschool.io/api/${this.user.uuid}/admin/ec/products?page=${page}`;
 
-            // 預設帶入 token
-            axios.defaults.headers.common.Authorization = `Bearer ${this.user.token}`;
-
-            // if (page !== this.pagination.current_page) {
-            //   axios.get(api).then((res) => {
-            //     this.products = res.data.data;
-            //     this.pagination = res.data.meta.pagination;
-            //   });
-            // }
+            // axios.defaults.headers.common.Authorization = `Bearer ${this.user.token}`;
 
             axios.get(api).then((res) => {
               this.products = res.data.data;
